@@ -1,0 +1,66 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><title></title></head><body><h2></h2>
+<h1><em>ELFintoBIT</em>: Scripts to load Microblaze(-V) binary data into a bitstream’s BlockRAM</h1>
+<p>Sadly, with the introduction of the <strong>Microblaze-V</strong> processor in <strong>Vitis 2024.x</strong>, AMD has removed a very useful feature from the <em><strong>Program Device</strong></em> dialog: The option to integrate an application’s code and data into a bitstream’s BRAM before downloading it. It still works for the classic Microblaze, but who knows how long.</p>
+<p><em>(Frankly, this seems insane, given that it is the most straightforward way to get a freshly compiled application started on the FPGA. The way through the debugger, for example, does not work on Zynq systems if one does not also enable the ARM processor. WTF?)</em></p>
+<p>Here, we are providing scripts to provide this function for both the classic <strong>Vitis IDE</strong> <em>(Eclipse-based)</em> and the <strong>Vitis Unified IDE</strong> <em>(VS Code/Theia-based)</em>. They support both the <em>Microblaze-V</em> and the legacy <em>Microblaze</em> processor.</p>
+<p>If you have questions or suggestions, contact me at <a href="mailto://r.willenberg@hs-mannheim.de">r.willenberg@hs-mannheim.de</a></p>
+<h2><em>Tcl</em> script for classic <em>Vitis IDE</em> (Eclipse)</h2>
+<h3>Automatic use inside the IDE</h3>
+<p>If you have a <em>Vitis IDE</em> workspace with exactly <strong>one</strong> application project, there is a quick way to initialize a bitstream:</p>
+<ul>
+<li>Open the <em>Xilinx Software Commandline Tool (XSCT)</em> console (Click icon or menu <em>Vitis</em>-&gt;<em>XSCT Console</em>)</li>
+<li>Start our Tcl script with</li>
+</ul>
+<pre><code class="language-xsct">   source ~/ELFintoBIT.tcl
+</code></pre>
+<p><em>(This assumes the script is located in the home directory ( <code>~/</code> ) otherwise adjust to the correct location)</em></p>
+<p>The resulting file <strong>download.bit</strong> is written to the same place where the original functionality placed it, next to the imported original bitstream in the application project:</p>
+<pre><code class="language-path">   WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit
+</code></pre>
+<h3>Use with command-line parameters (<em>.sh</em> wrapper)</h3>
+<p>Alternatively, our script can be used outside <em>Vitis</em> with arguments to specify</p>
+<ul>
+<li>a different Vitis workspace location</li>
+<li>an application, in case there are multiple applications in the workspace</li>
+<li>an output bitstream path and name different from the default (<code>WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit</code>)</li>
+</ul>
+<p>Because <em>Tcl</em> scripts can’t have arguments in XSCT, we are using a <em>bash</em> shell script as a wrapper. Make sure that you have set the <em>Vitis</em> tool paths with the corresponding script (e.g. <code>XILINX_PATH/Vitis/2024.1/settings.sh</code>).</p>
+<p>Assuming that both the Tcl script <strong>ELFintoBIT.tcl</strong> and the shell wrapper <strong>ELFintoBIT.sh</strong> are located in the home directory ( <code>~/</code> ), call the script with</p>
+<pre><code class="language-bash">   source ~/ELFintoBIT.sh  -w WORKSPACE_PATH  -a APPLICATION_NAME
+</code></pre>
+<p><em>(adjust the call appropriately if the scripts are located somewhere else)</em></p>
+<p>The bash script turns the arguments into environment variables and then launches XSCT with the Tcl script, which can read the environment variables.</p>
+<p>If no output path was specified, the resulting bitstream is again located at</p>
+<pre><code class="language-path">   WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit
+</code></pre>
+<p>It is currently not supported to initialize <em>multiple</em> processors with <em>multiple</em> applications in the same bitstream.</p>
+<h2><em>Python</em> script for <em>Vitis Unified IDE</em> (VS Code/Theia)</h2>
+<h3>Automatic use inside the IDE</h3>
+<p>If you have a <em>Vitis Unified IDE</em> workspace with exactly <strong>one</strong> application project, there is a quick way to initialize a bitstream:</p>
+<ul>
+<li>Open a new shell terminal with the Vitis menu entry <em>Terminal</em>-&gt;<em>New Terminal</em>)</li>
+<li>Launch a <em>Vitis</em> command-line instance that executes our Python script with</li>
+</ul>
+<pre><code class="language-bash">   vitis -s ~/ELFintoBIT.py
+</code></pre>
+<p><em>(This assumes the Python script is located in the home directory ( <code>~/</code> ) otherwise adjust to the correct location)</em></p>
+<p>The resulting file <strong>download.bit</strong> is written to the same place where the original functionality placed it, next to the imported original bitstream in the application project:</p>
+<pre><code class="language-path">   WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit
+</code></pre>
+<h3>Use with command-line parameters</h3>
+<p>You can specify three types of arguments to the script:</p>
+<ul>
+<li>a Vitis workspace path that is different from the terminals current work directory</li>
+<li>a specific application name if there are multiple applications in your Vitis workspace</li>
+<li>an output path and bitstream name different from the default (<code>WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit</code>)</li>
+</ul>
+<p>When using a terminal not opened inside the <strong>Vitis Unified IDE</strong>, make sure you have set the <em>Vitis</em> tool paths with the corresponding script (e.g. <code>XILINX_PATH/Vitis/2024.1/settings.sh</code>).</p>
+<p>This is what the command-line call with added parameters looks like:</p>
+<pre><code class="language-bash">   vitis -s ~/ELFintoBIT.py  -sw WORKSPACE_PATH  -sa APPLICATION  -so OUTPUT_BITSTREAM
+</code></pre>
+<p>Note that the options keys here are <code>-sw</code> (script workspace),  <code>-sa</code> (script application) and <code>-so</code> (script output) because the shorter <code>-w</code> and <code>-a</code> are possible options to the Vitis command-line instance, and would not be handed to the script.</p>
+<p>If no output path was specified, the resulting bitstream is again located at</p>
+<pre><code class="language-path">   WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit
+</code></pre>
+<p>It is currently not supported to initialize <em>multiple</em> processors with <em>multiple</em> applications in the same bitstream.</p>
+</body></html>
