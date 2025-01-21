@@ -70,13 +70,6 @@ proc ELFintoBIT { args } {
     set clWorkspace [ string map { "\\" "/" } $clWorkspace ]
     set clOutput [ string map { "\\" "/" } $clOutput ]
 
-puts ""
-puts "Applications : $clApp"
-puts "Workspace    : $clWorkspace"
-puts "Output file  : $clOutput"
-puts "Download     : $clDownload"
-puts "DownloadOnly : $clDownloadOnly"
-
     # make list clApps from clApp
     set clApps [ split [ string trimright [ string trimleft $clApp " " ] " " ]  " " ]
 
