@@ -13,8 +13,7 @@ If you have questions or suggestions, contact me at [r.willenberg@hs-mannheim.de
 
 ## *Tcl* command for classic *Vitis IDE* (Eclipse) ##
 
-[Click here for new Vitis Unified](#python-script-for-vitis-unified-ide)
-[Click here for new Vitis Unified IDE](#python-script-for-vitis-unified-ide-vs-code-theia)
+[Click here for new Vitis Unified IDE](#python-script-for-vitis-unified-ide-vs-codetheia)
 
 ### Installation ###
 
@@ -83,7 +82,6 @@ The *xsct* console starts and you can use the **```ELFintoBIT```** command. If y
    ELFintoBIT -w ~/MYDESIGN -a cpu0app -a cpu1app -d
 ```
 
-## Python script for Vitis Unified IDE ##
 ## *Python* script for *Vitis Unified IDE* (VS Code/Theia) ##
 
 ### Installation ###
