@@ -1,28 +1,86 @@
+proc ELFintoBIT { args } {
+
+    #### START ####
+
+    puts ""
+    puts "Starting ELFintoBIT ..."
+    puts ""
+
+    #### PROCESS ARGUMENTS ####
+
+    set clDownload 0
+    set clDownloadOnly 0
+    set clWorkspace ""
+    set clApp ""
+    set clOutput ""
+
+    set argsList [ split $args " " ]
+    # output list in a loop
+    set numArgs [ llength $argsList ]
+    for {set i 0} {$i < $numArgs} {incr i} {
+        set arg [ lindex $argsList $i ]
+        switch -regexp -- $arg {
+            "-d" {  set clDownload 1  }
+            "-l" {  set clDownloadOnly 1 }
+            "-a" {
+                    incr i
+                    if {$i < $numArgs} {
+                        append clApp [ lindex $argsList $i ]
+                        append clApp " "
+                    } else {
+                        puts "ERROR: Missing argument for -a option."
+                        return 1
+                    }
+            }
+            "-w" {
+                    incr i
+                    if {$i < $numArgs} {
+                        set clWorkspace [ lindex $argsList $i ]
+                    } else {
+                        puts "ERROR: Missing argument for -w option."
+                        return 1
+                    }
+            }
+            "-o" {
+                    incr i
+                    if {$i < $numArgs} {
+                        set clOutput [ lindex $argsList $i ]
+                    } else {
+                        puts "ERROR: Missing argument for -o option."
+                        return 1
+                    }
+            }
+            default {
+                if { [regexp {^-} $arg] } {
+                    puts "ERROR: Unknown option '$arg' specified."
+                    return 1
+                }
+            }
+        }
+    }
+
+    # if clDownloadOnly AND clDownload are set, return error
+    if { $clDownloadOnly == 1 && $clDownload == 1 } {
+        puts "ERROR: -l and -d options cannot be used together."
+        puts "       Can't both download the last bitstream and generate and download a new one."
+        return 1
+    }
+
+    # replace all path backslashes with forward slashes
+    set clWorkspace [ string map { "\\" "/" } $clWorkspace ]
+    set clOutput [ string map { "\\" "/" } $clOutput ]
 
 puts ""
-puts "Starting ELFintoBIT.tcl ..."
-puts ""
+puts "Applications : $clApp"
+puts "Workspace    : $clWorkspace"
+puts "Output file  : $clOutput"
+puts "Download     : $clDownload"
+puts "DownloadOnly : $clDownloadOnly"
 
-# one time while loop to allow break without process exit
-while { 1 } {
+    # make list clApps from clApp
+    set clApps [ split [ string trimright [ string trimleft $clApp " " ] " " ]  " " ]
 
-    # Take arguments set if called through shell script
-    if { [ info exists env(ETOB_WORKSPACE) ] } {
-        set clWorkspace $env(ETOB_WORKSPACE)
-    } else {
-        set clWorkspace ""
-    }
-    if { [ info exists env(ETOB_APPNAME) ] } {
-        set clApp $env(ETOB_APPNAME)
-    } else {
-        set clApp ""
-    }
-    if { [ info exists env(ETOB_OUTPUT) ] } {
-        set clOutput $env(ETOB_OUTPUT)
-    } else {
-        set clOutput ""
-    }
-
+    # get workspace path
     if { [ string length [ getws ] ] == 0 } {
         if { [ string length $clWorkspace ] == 0 } {
             setws "./"
@@ -30,47 +88,137 @@ while { 1 } {
             setws $clWorkspace
         }
     }
-
     # Read Vitis project path
     set WSPATH [ getws ]
 
-    # App project name - take first app name from app list if empty
-    set APPDATA [ app list -dict ]
-    if { [ string length $clApp ] == 0 } {
-        set idx 0
-        set idx2 [ string first " " $APPDATA 0 ]
-    } else {
-        # find app name as substring in app list
-        set idx [ string first $clApp $APPDATA 0 ]
-        set idx2 [ string first " " $APPDATA $idx ]
+    #### DOWNLOAD_ONLY ####
+
+    if { $clDownloadOnly == 1 } {
+        # read last ELFed bitstream from .last_ELFed_BIT
+        set last_elfbit_file "${WSPATH}/.last_ELFed_BIT"
+        set last_elfbit [ open $last_elfbit_file "r" ]
+        set last_bitstream [ read $last_elfbit ]
+        close $last_elfbit
+        # remove trailing newlines
+        set last_bitstream [ string trimright $last_bitstream "\n" ]
+        set last_bitstream [ string trimright $last_bitstream "\r" ]
+        if { [ string length $last_bitstream ] == 0 } {
+            puts "ERROR: No last generated bitstream with ELFs found."
+            return 1
+        }
+        # if $last_bitstream is not a file, exit
+        if { ! [ file exists $last_bitstream ] } {
+            puts "ERROR: Last generated bitstream not found."
+            return 1
+        }
+        puts ""
+        puts "Attempting to download bitstream to FPGA..."
+        puts ""
+        # catch exception if connect doesn't work, print message in that case
+        set result [ catch { connect } msg ]
+        if { $result != 0 } {
+            puts "ERROR: Board connect failed"
+            puts $msg
+            return 1
+        } else {
+            set result [  catch { fpga $last_bitstream } msg ]
+            if { $result != 0 } {
+                puts "ERROR: FPGA download failed"
+                puts $msg
+                return 1
+            } else {
+                puts "FPGA download complete."
+            }
+        }
+        puts ""
+        puts "ELFintoBIT.tcl finished."
+
+        return 0
     }
-    set APPNAME [ string range $APPDATA $idx $idx2-1 ]
 
-    # extract domain name for app
-    set didx [ string first "domain" $APPDATA $idx2 ]
-    set didx2 [ string first " " $APPDATA $didx+1 ]
-    set didx3 [ string first " " $APPDATA $didx2+1 ]
-    set DOMNAME [ string range $APPDATA $didx2+1 $didx3-1 ]
+    #### RETRIEVE AND MATCH PROJECT DATA ####
 
-    # extract platform name for app
-    set pidx [ string first "platform" $APPDATA $didx2 ]
-    set pidx2 [ string first " " $APPDATA $pidx+1 ]
-    set pidx3 [ string first "\}" $APPDATA $pidx2+1 ]
-    set PLATNAME [ string range $APPDATA $pidx2+1 $pidx3-1 ]
+    # Retrieve app/domain/platform data for all apps in workspace
+    set APPDATA [ app list -dict ]
+    set APPDATA_ELEMENTS [ split [ string trimright $APPDATA " " ]  " " ]
+
+    # distribute into app, domain, platform lists
+    set ALLAPPS [ list ]
+    set ALLDOMS [ list ]
+    set ALLPLATS [ list ]
+    foreach { APP GAP1 DOM GAP2 PLAT } $APPDATA_ELEMENTS {
+        lappend ALLAPPS $APP
+        lappend ALLDOMS $DOM
+        lappend ALLPLATS [string range $PLAT 0 end-1]
+    }
+
+    # if list clApps is not empty, sort out apps to be used
+    if { [ llength $clApps ] > 0 } {
+        set APPS [ list ]
+        set DOMS [ list ]
+        set PLATS [ list ]
+        foreach clApp $clApps {
+            set idx [ lsearch -exact $ALLAPPS $clApp ]
+            if { $idx >= 0 } {
+                lappend APPS $clApp
+                lappend DOMS [ lindex $ALLDOMS $idx ]
+                lappend PLATS [ lindex $ALLPLATS $idx ]
+            } else {
+                set missingApp $clApp
+                return 1
+            }
+        }
+        if { $idx == -1 } {
+            puts "ERROR: App ${missingApp} not found in workspace."
+            return 1
+        }
+    } else {
+        set APPS $ALLAPPS
+        set DOMS $ALLDOMS
+        set PLATS $ALLPLATS
+    }
+    if { [ llength $APPS ] == 0 } {
+        puts "ERROR: No apps found in workspace."
+        return 1
+    }
+    if { [ llength $APPS ] > 1 } { 
+        # check if all domains are different
+        set DOMS_UNIQUE [ lsort -unique $DOMS ]
+        if { [ llength $DOMS_UNIQUE ] != [ llength $DOMS ] } {
+            puts "ERROR: Some selected apps have the same domain."
+            return 1
+        }
+        # check if all platforms are the same
+        set PLATS_UNIQUE [ lsort -unique $PLATS ]
+        if { [ llength $PLATS_UNIQUE ] > 1 } {
+            puts "ERROR: Selected apps belong to different platforms."
+            return 1
+        }
+    }
+
+    set PLATNAME [ lindex $PLATS 0 ]
 
     # Set platform
     platform active $PLATNAME
+    puts ""
+    puts "Platform     : ${PLATNAME}"
 
     # Get processor from domain
     set DOMDATA [ domain list -dict ]
 
-    # find domain name as substring in domain list
-    set idx [ string first $DOMNAME $DOMDATA 0 ]
-    set idx2 [ string first " " $DOMDATA $idx ]
-    set didx [ string first "processor" $DOMDATA $idx2 ]
-    set didx2 [ string first " " $DOMDATA $didx+1 ]
-    set didx3 [ string first " " $DOMDATA $didx2+1 ]
-    set MB_INSTANCE [ string range $DOMDATA $didx2+1 $didx3-1 ]
+    set DOMDATA_ELEMENTS [ split [ string trimright $DOMDATA " " ]  " " ]
+    set ALLDOMS [ list ]
+    set ALLCPUS [ list ]
+    foreach { DOM GAP1 CPU GAP2 GAP3 } $DOMDATA_ELEMENTS {
+        lappend ALLDOMS $DOM
+        lappend ALLCPUS $CPU
+    }
+    # match DOMS with ALLDOMS and get MB_INSTANCES list from ALLCPUS
+    set MB_INSTANCES [ list ]
+    foreach DOM $DOMS {
+        set idx [ lsearch -exact $ALLDOMS $DOM ]
+        lappend MB_INSTANCES [ lindex $ALLCPUS $idx ]
+    }
 
     set PLATHW_PATH "${WSPATH}/${PLATNAME}/hw/*.xsa"
     set result [catch { glob $PLATHW_PATH } XSA_PATH]
@@ -78,15 +226,25 @@ while { 1 } {
         puts "ERROR: No XSA_PATH found"
         puts ""
         puts "ELFintoBIT.tcl aborted."
-        break
+        return 1
     }
-    #puts "XSA_PATH       : ${XSA_PATH}"
+    puts "XSA file     : ${XSA_PATH}"
 
     # extract block design instance from XSA/sysdef.xml
     set XSAGREP [ exec unzip -p ${XSA_PATH} sysdef.xml | grep DEFAULT_BD ]
     set idx [ string first "DESIGN_HIERARCHY" $XSAGREP ]
     set idx2 [ string first "\"" $XSAGREP $idx+18 ]
     set BD_INSTANCE [ string range $XSAGREP $idx+18 $idx2-1 ]
+    puts "Block design : ${BD_INSTANCE}"
+
+    # print processors and applications
+    for { set i 0 } { $i < [ llength $APPS ] } { incr i } {
+        set APP [ lindex $APPS $i ]
+        set MB_INSTANCE [ lindex $MB_INSTANCES $i ]
+        puts "Processor    : ${MB_INSTANCE}"
+        puts "Application  : ${APP}"
+    }
+    puts ""
 
     # extract BIT file name from XSA/sysdef.xml
     set XSAGREP [ exec unzip -p ${XSA_PATH} sysdef.xml | grep BIT ]
@@ -100,69 +258,159 @@ while { 1 } {
     set idx2 [ string first "\"" $XSAGREP $idx+6 ]
     set MMI_FILE [ string range $XSAGREP $idx+6 $idx2-1 ]
 
-    puts "App name       : ${APPNAME}"
-    puts "Domain         : ${DOMNAME}"
-    puts "Platform       : ${PLATNAME}"
-    puts "Processor      : ${MB_INSTANCE}"
-    puts "Block instance : ${BD_INSTANCE}"
-    puts ""
 
-    # Generate arguments
-    set MMI "${WSPATH}/${APPNAME}/_ide/bitstream/${MMI_FILE}"
-    set BIT "${WSPATH}/${APPNAME}/_ide/bitstream/${BIT_FILE}"
-    set RELF "${WSPATH}/${APPNAME}/Release/${APPNAME}.elf"
-    set DELF "${WSPATH}/${APPNAME}/Debug/${APPNAME}.elf"
-    set PROC "${BD_INSTANCE}/${MB_INSTANCE}"
-    if { [ string length $clOutput ] == 0 } {
-        set OUT "${WSPATH}/${APPNAME}/_ide/bitstream/download.bit"
-    } else {
-        set OUT $clOutput
+    #### BITSTREAM UPDATES ####
+
+    set APP_BIT_PATH "/_ide/bitstream/"
+    set FIRSTAPP [ lindex $APPS 0 ]
+
+    set MMI "${WSPATH}/${FIRSTAPP}${APP_BIT_PATH}${MMI_FILE}"
+    set BIT "${WSPATH}/${FIRSTAPP}${APP_BIT_PATH}${BIT_FILE}"
+    set TEMPIN "${WSPATH}/${FIRSTAPP}${APP_BIT_PATH}_etob_in.bit"
+    set TEMPOUT "${WSPATH}/${FIRSTAPP}${APP_BIT_PATH}_etob_out.bit"
+
+
+    # if MMI or BIT file do not exist, exit
+    if { ! [ file exists $MMI ] } {
+        puts "ERROR: ${MMI}  missing." ; return 1 }
+    if { ! [ file exists $BIT ] } {
+        puts "ERROR: ${BIT}  missing." ; return 1 }
+    set ELFS [ list ]
+
+    foreach APP $APPS {
+        set RELF "${WSPATH}/${APP}/Release/${APP}.elf"
+        set DELF "${WSPATH}/${APP}/Debug/${APP}.elf"
+        if { [ file exists $RELF ] } {
+            lappend ELFS $RELF
+            puts "Found Release ELF file: ${RELF}."
+            puts "Delete Release ELF if you want to use the Debug ELF file."
+            } else {
+            if { [ file exists $DELF ] } { lappend ELFS $DELF } else {
+                puts "ERROR - neither Release nor Debug ELF file for App found:"
+                puts "  ${RELF}"
+                puts "  ${DELF}"
+                return 1
+            }
+        }
     }
 
-    # Check if file paths exist
-    set COMPLETE 1
-    if { [ file exists $MMI ] } { puts "MMI file exists." ;  } else {
-        puts "ERROR: ${MMI}  missing." ; set COMPLETE 0 }
-    if { [ file exists $BIT ] } { puts "BIT file exists." ;  } else {
-        puts "ERROR: ${BIT}  missing." ; set COMPLETE 0 }
-    # Prefer Release ELF path to Debug ELF path
-    if { [ file exists $RELF ] } { puts "ELF file (Release) exists." ; set ELF "$RELF" } else {
-        if { [ file exists $DELF ] } { puts "ELF file (Debug) exists." ; set ELF "$DELF" } else {
-            puts "ERROR - neither Release nor Debug ELF file found:"
-            puts "  ${RELF}"
-            puts "  ${DELF}"
-            set COMPLETE 0 }
+    # make temporary copy of unELFed bitstream - copy BIT to TEMPIN
+    set result [catch { exec cp $BIT $TEMPIN } output]
+    if { $result != 0 } {
+        puts "ERROR: cp $BIT $TEMPIN failed."
+        return 1
     }
 
-    # Execute updatemem if input files available
-    if { $COMPLETE } {
-        puts "updatemem -force -meminfo $MMI"
-        puts "                 -bit     $BIT"
-        puts "                 -data    $ELF"
-        puts "                 -proc    $PROC"
-        puts "                 -out     $OUT"
+    # make counting for loop for all elements in APPS (i = 0 to length(APPS)-1)
+    for { set i 0 } { $i < [ llength $APPS ] } { incr i } {
+        set APP [ lindex $APPS $i ]
+        set MB_INSTANCE [ lindex $MB_INSTANCES $i ]
+        set ELF [ lindex $ELFS $i ]
+
+        # Generate arguments
+        set PROC "${BD_INSTANCE}/${MB_INSTANCE}"
+
+        puts ""
+        puts "Calling  updatemem  with ${APP}.elf for CPU ${MB_INSTANCE} ..."
         puts ""
 
-        set result [catch {exec updatemem -force -meminfo $MMI -bit $BIT -data $ELF -proc $PROC -out $OUT} output]
+        # Execute updatemem if input files available
+        set result [catch {exec updatemem -force -meminfo $MMI -bit $TEMPIN -data $ELF -proc $PROC -out $TEMPOUT} output]
         if { $result == 0 } {
             puts "updatemem  executed successfully:"
             puts "---------------------------------"
             puts $output
         } else {
-            puts "updatemem  failed:"
+            puts "ERROR: updatemem  failed:"
             puts "------------------"
             puts $output
-            puts ""
-            puts "ELFintoBIT.tcl aborted."
-            break
-        }    
-    } else {
-        puts ""
-        puts "ELFintoBIT.tcl aborted."
-        break
+            return 1
+        }
+
+        # copy TEMPOUT to TEMPIN for next iteration
+        set result [catch { exec cp $TEMPOUT $TEMPIN } output]
+        if { $result != 0 } {
+            puts "ERROR: cp $TEMPOUT $TEMPIN failed."
+            return 1
+        }
+   
     }
-    # exit while loop after one iteration
+    # end of updatemem for loop    
+
+
+    set allouts [ list "" ]
+    if { [ string length $clOutput ] != 0 } {
+        set OUT $clOutput
+        # copy TEMPOUT to OUT
+        set result [catch { exec cp $TEMPOUT $OUT } output]
+        if { $result != 0 } {
+            puts "ERROR: cp $TEMPOUT $OUT failed."
+            return 1
+        }
+        set firstout $OUT
+        lappend allouts "${OUT}"
+    } else {
+        # copy to all app folders
+        set numApps [ llength $APPS ]
+        for {set i 0} {$i < $numApps} {incr i} {
+            set APP [ lindex $APPS $i ]
+            set OUT "${WSPATH}/${APP}${APP_BIT_PATH}download.bit"            
+            set result [catch { exec cp $TEMPOUT $OUT } output]
+            if { $result != 0 } {
+                puts "ERROR: cp $TEMPOUT $OUT failed."
+                return 1
+            }
+            lappend allouts $OUT
+            if { $i == 0} {
+                set firstout $OUT
+            }
+        }
+    }
+    # delete TEMPIN and TEMPOUT
+    set result [catch { exec rm $TEMPIN } output]
+    set result [catch { exec rm $TEMPOUT } output]
+
+    # write string firstout into file .last_ELFed_BIT
+    set last_elfbit_file "${WSPATH}/.last_ELFed_BIT"
+    set last_elfbit [ open $last_elfbit_file "w" ]
+    puts $last_elfbit $firstout
+    close $last_elfbit
+
+    # list output locations
     puts ""
-    puts "ELFintoBIT.tcl finished."
-    break
+    puts "The bitstream was written to the following location(s):"
+    puts "-------------------------------------------------------"
+    foreach OUT $allouts {
+        puts "${OUT}"
+    }
+        
+    #### LOCAL FPGA DOWNLOAD ####
+
+    if { $clDownload == 1 } {
+        puts ""
+        puts "Attempting to download bitstream to FPGA..."
+        puts ""
+        # catch exception if connect doesn't work, print message in that case
+        set result [ catch { connect } msg ]
+        if { $result != 0 } {
+            puts "ERROR: Board connect failed"
+            puts $msg
+            return 1
+        } else {
+            set result [  catch { fpga $OUT } msg ]
+            if { $result != 0 } {
+                puts "ERROR: FPGA download failed"
+                puts $msg
+                return 1
+            } else {
+                puts "FPGA download complete."
+            }
+        }            
+    }
+
+    #### FINISH ####
+
+    puts ""
+    puts "ELFintoBIT finished."
+    return 0
 }

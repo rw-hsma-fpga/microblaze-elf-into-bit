@@ -1,35 +1,84 @@
 import os
+import platform
 import subprocess
 import vitis
 from io import StringIO
 import sys
+from sys import exit
 import argparse
 
-def leave_script(lockfilename, oldlockfilename):
+
+# Finish function
+def leave_script(lockfilename, oldlockfilename, abort=False):
     # Reinstate stupid workspace lock
     # if file .oldlock exists, rename it to .lock
     if os.path.isfile(oldlockfilename):
         os.system("mv "+oldlockfilename+" "+lockfilename)
+        
+    if abort:
+        print()
+        print("ELFintoBIT.py aborted.")
+        print()
+    else:
+        print()
+        print("ELFintoBIT.py finished.")
+        print()
+
     exit()
 
+# FPGA download function (calling xsct)
+def download_to_FPGA(bitstream):
+    # change any backslashes to forward slashes
+    bitstream = bitstream.replace("\\", "/")
+    print()
+    print("Attempting to download bitstream to FPGA...")
+    # Using "deprecated" xsct tool until AMD gets off their asses
+    # and offers this through the Vitis Python API (and documents it)
+    xsct_call = "xsct -quiet -eval \"connect ; set result [ catch { fpga " + bitstream + " } msg ] ; puts \\$msg ; if { \\$result == 1 } { puts \\\"FPGA download failed.\\\" } \""
+    os.system(xsct_call)
+
+
+#### START ####
 
 print()
 print("Starting ELFintoBIT.py ...")
 print()
 
+# Check/save OS, fix missing GNUWIN path on Vitis Windows
+Windows = (platform.system() == "Windows")
+if Windows:
+    if os.environ["PATH"].find("gnuwin/bin") == -1 and os.environ["PATH"].find("gnuwin\\bin") == -1:
+        os.environ["PATH"]=os.environ["PATH"] + ";" + os.environ["XILINX_VITIS"] + "/gnuwin/bin"
+
+
+#### PROCESS ARGUMENTS ####
+
 # prepare commandline argument parsing. Can't use -w or -a as they are snatched by Vitis
 parser = argparse.ArgumentParser(description="Optional arguments if non-automatic")
 parser.add_argument('-sw', '--workpath', type=str, required=False, help='script workspace path')
-parser.add_argument('-sa', '--app', type=str, required=False, help='script application name')
+# -sa argument can be specified multiple times
+parser.add_argument('-sa', '--app', type=str, required=False, action='append', help='script application name')
 parser.add_argument('-so', '--output', type=str, required=False, help='script output path and name')
+parser.add_argument('-sd', '--download', action='store_true', help='download bitstream to FPGA')
+parser.add_argument('-sl', '--download_last', action='store_true', help='download existing integrated bitstream to FPGA')
 
-# parse
 args = parser.parse_args()
 
+Download = args.download
+DownloadOnly = args.download_last
+
+if Download and DownloadOnly:
+    print("ERROR: Conflicting arguments -sl and -sd.")
+    print("       Can't both download the last bitstream and generate and download a new one.")
+    exit()
+
 if args.app is not None:
-    a_app = args.app
+    a_apps = args.app
+    no_apps_specified = False
 else:
-    a_app = ""  # will use first app found in workspace
+    # Set a_apps to empty list of strings
+    a_apps = []
+    no_apps_specified = True
 
 if args.output is not None:
     a_output = args.output
@@ -53,6 +102,24 @@ if args.workpath is not None:
 else:
     WSPATH = os.getcwd()
 
+print()
+print("Workspace path: " + WSPATH)
+print()
+
+# If requested, only download last generated bitstream and leave
+if DownloadOnly:
+    # read string OUT from file .last_download
+    with open(WSPATH+"/.last_ELFed_BIT", "r") as f:
+        last_bitstream = f.read()
+    if last_bitstream == "":
+        print("ERROR: No last generated bitstream with ELFs found.")
+        leave_script("", "", abort=True)
+    # if file last_bitstream does not exist, abort
+    if not os.path.isfile(last_bitstream):
+        print("ERROR: Bitstream " + last_bitstream + " does not exist.")
+        leave_script("", "", abort=True)
+    download_to_FPGA(last_bitstream)
+    leave_script("", "", abort=False)
 
 # Remove stupid workspace lock - if file .lock exists, rename it to .oldlock
 LOCKPATH = ""
@@ -61,30 +128,40 @@ OLDLOCKPATH = ""
 if os.path.isfile(WSPATH + "/_ide/.wsdata/.lock"):
     LOCKPATH = WSPATH + "/_ide/.wsdata/.lock"
     OLDLOCKPATH = WSPATH + "/_ide/.wsdata/.oldlock"
-    os.system("mv "+LOCKPATH+" "+OLDLOCKPATH)
 else:
     # otherwise check for location in 2024.1
     if os.path.isfile(WSPATH + "/.lock"):
         LOCKPATH = WSPATH + "/.lock"
         OLDLOCKPATH = WSPATH + "/.oldlock"
+
+if LOCKPATH != "":
+    if Windows:
+        os.system("rm -f " + LOCKPATH)
+        if os.path.isfile(LOCKPATH):
+            print("ERROR: Unable to remove .lock file.")
+            print("Please terminate  vitis-ide's OpenJDK  process in Windows Task Manager before restarting script.")
+            print("(Blame AMD for this crap.)")
+            leave_script(LOCKPATH, OLDLOCKPATH, abort=True)
+    else:
         os.system("mv "+LOCKPATH+" "+OLDLOCKPATH)
 
+
+#### RETRIEVE AND MATCH PROJECT DATA ####
 
 # Set Vitis workspace
 client = vitis.create_client()
 client.set_workspace(path=WSPATH)
-print()
-print("Workspace path: " + WSPATH)
-
 components = client.list_components()
 
-MB_INSTANCE=""
 XSA_PATH=""
 BDNAME=""
 CURRENT_APPNAME=""
-APPNAME=""
-CURRENT_PLATFORMNAME=""
+APPNAMES=[]
+PLATFORM_PATH=""
+NEW_PLATFORMNAME=""
 PLATFORMNAME=""
+NEW_MB_INSTANCE=""
+MB_INSTANCES=[]
 
 # extract app data from components
 for i in components:
@@ -103,39 +180,72 @@ for i in components:
             pass
         else: # -> application
             CURRENT_APPNAME = i['name']
-            if (a_app==""):
-                a_app = CURRENT_APPNAME
-            if CURRENT_APPNAME == a_app:
-                APPNAME = CURRENT_APPNAME
-                print("App name      : " + APPNAME)
-
+            if (no_apps_specified):
+                a_apps.append(CURRENT_APPNAME)
+            if CURRENT_APPNAME in a_apps:
+                appindex = a_apps.index(CURRENT_APPNAME)
+                # Ensure APPNAMES has elements up to appindex
+                for i in range(len(APPNAMES), appindex+1):
+                    APPNAMES.append(None)
+                APPNAMES[appindex] = CURRENT_APPNAME
+                print("App name      : " + APPNAMES[appindex])
                 # extract platform name
                 idx1 = comprepout.find("Platform")
                 idx2 = comprepout.find("'", idx1+1)
                 idx3 = comprepout.find("'", idx2+1)
                 PLATFORM_PATH = comprepout[idx2+1:idx3]
+                # remove all spaces and newlines
+                PLATFORM_PATH = ''.join(PLATFORM_PATH.split())
+                # if ".xpfm" in string, remove ".xpfm"
                 idx1 = PLATFORM_PATH.rfind(".xpfm")
+                if idx1 != -1:
+                    PLATFORM_PATH = PLATFORM_PATH[:idx1]
                 idx2 = PLATFORM_PATH.rfind("/")
-                PLATFORMNAME = PLATFORM_PATH[idx2+1:idx1]
-                print("Platform name : " + PLATFORMNAME)
+                if idx2 != -1:
+                    PLATFORM_PATH = PLATFORM_PATH[idx2+1:]
+                idx2 = PLATFORM_PATH.rfind("\\")
+                if idx2 != -1:
+                    PLATFORM_PATH = PLATFORM_PATH[idx2+1:]
+                NEW_PLATFORMNAME = PLATFORM_PATH
+                print("Platform name : " + NEW_PLATFORMNAME)
+                if PLATFORMNAME != "" and PLATFORMNAME != NEW_PLATFORMNAME:
+                    print("ERROR: Applications belong to different platforms.")
+                    client.close()
+                    leave_script(LOCKPATH, OLDLOCKPATH, abort=True)
+                PLATFORMNAME = NEW_PLATFORMNAME
 
                 # extract CPU instance
                 idx1 = comprepout.find("CPU instance")
                 idx2 = comprepout.find("'", idx1+1)
                 idx3 = comprepout.find("'", idx2+1)
-                MB_INSTANCE=comprepout[idx2+1:idx3]
-                MB_INSTANCE = ''.join(MB_INSTANCE.split())
-                print("MB instance   : " + MB_INSTANCE)
+                NEW_MB_INSTANCE=comprepout[idx2+1:idx3]
+                NEW_MB_INSTANCE = ''.join(NEW_MB_INSTANCE.split())
+                if NEW_MB_INSTANCE in MB_INSTANCES:
+                    print("ERROR: Multiple applications using same CPU instance.")
+                    client.close()
+                    leave_script(LOCKPATH, OLDLOCKPATH, abort=True)
+                for i in range(len(MB_INSTANCES), appindex+1):
+                    MB_INSTANCES.append(None)
+                MB_INSTANCES[appindex] = NEW_MB_INSTANCE
+                print("MB instance   : " + MB_INSTANCES[appindex])
+                print()
 
 # following functions don't need Vitis client anymore, can be closed
 client.close()
+print()
+
+# Check if all apps from command-line found
+if no_apps_specified==False:
+    for clApp in a_apps:
+        if clApp not in APPNAMES:
+            print("ERROR: Application " + clApp + " not found in workspace.")
+            leave_script(LOCKPATH, OLDLOCKPATH, abort=True)
 
 # Find XSA file
 XSA_DIR = WSPATH+"/"+PLATFORMNAME+"/hw/"
 for file in os.listdir(PLATFORMNAME+"/hw/"):
     if file.endswith(".xsa"):
         XSA_PATH = os.path.join(WSPATH+"/"+PLATFORMNAME+"/hw/",file)
-        print(XSA_PATH)
 
 if XSA_PATH=="" or not os.path.isfile(XSA_PATH):
     print("ERROR: XSA file " + XSA_PATH + " does not exist.")
@@ -147,80 +257,125 @@ if XSA_PATH=="" or not os.path.isfile(XSA_PATH):
 print("XSA path      : " + XSA_PATH)
 
 # Unzip XSA and extract BD instance, BIT and MMI paths
-unzipcall = "unzip -p " + XSA_PATH + " sysdef.xml | grep DEFAULT_BD"
+unzipcall = "unzip -p " + XSA_PATH + " sysdef.xml"
 try:
     result = subprocess.check_output(unzipcall, shell=True, text=True)
 except subprocess.CalledProcessError as e:
     print("ERROR unzipping XSA file")
     leave_script(LOCKPATH, OLDLOCKPATH)
-idx1 = result.find("DESIGN_HIERARCHY=\"")
-idx2 = result.find("\"", idx1+18)
-BD_INSTANCE=result[idx1+18:idx2]
+BDline = ""
+for line in result.splitlines():
+    if "BD_TYPE=\"DEFAULT_BD\"" in line:
+        BDline = line
+        break
+idx1 = BDline.find("DESIGN_HIERARCHY=\"")
+idx2 = BDline.find("\"", idx1+18)
+BD_INSTANCE=BDline[idx1+18:idx2]
 print("BD instance   : " + BD_INSTANCE) 
 
-unzipcall = "unzip -p " + XSA_PATH + " sysdef.xml | grep BIT"
+unzipcall = "unzip -p " + XSA_PATH + " sysdef.xml"
 try:
     result = subprocess.check_output(unzipcall, shell=True, text=True)
 except subprocess.CalledProcessError as e:
     print("ERROR unzipping XSA file")
     leave_script(LOCKPATH, OLDLOCKPATH)
-idx1 = result.find("Name=\"")
-idx2 = result.find("\"", idx1+6)
-BITFILE=result[idx1+6:idx2]
+BITline = ""
+for line in result.splitlines():
+    if "File Type=\"BIT\"" in line:
+        BITline = line
+        break
+idx1 = BITline.find("Name=\"")
+idx2 = BITline.find("\"", idx1+6)
+BITFILE=BITline[idx1+6:idx2]
 print("BIT path      : " + BITFILE)
 
-unzipcall = "unzip -p " + XSA_PATH + " sysdef.xml | grep MMI"
+unzipcall = "unzip -p " + XSA_PATH + " sysdef.xml"
 try:
     result = subprocess.check_output(unzipcall, shell=True, text=True)
 except subprocess.CalledProcessError as e:
     print("ERROR unzipping XSA file")
     leave_script(LOCKPATH, OLDLOCKPATH)
-idx1 = result.find("Name=\"")
-idx2 = result.find("\"", idx1+6)
-MMIFILE=result[idx1+6:idx2]
+MMIline = ""
+for line in result.splitlines():
+    if "File Type=\"MMI\"" in line:
+        MMIline = line
+        break
+idx1 = MMIline.find("Name=\"")
+idx2 = MMIline.find("\"", idx1+6)
+MMIFILE=MMIline[idx1+6:idx2]
 print("MMI path      : " + MMIFILE)
-
 print()
 
-MMI  = WSPATH + "/" + APPNAME + "/_ide/bitstream/" + MMIFILE
-BIT  = WSPATH + "/" + APPNAME + "/_ide/bitstream/" + BITFILE
-ELF  = WSPATH + "/" + APPNAME + "/build/" + APPNAME + ".elf"
-PROC = BD_INSTANCE + "/"+ MB_INSTANCE
 
-if a_output != "":
-    OUT  = a_output
-else:
-    OUT  = WSPATH + "/" + APPNAME + "/_ide/bitstream/download.bit"
+#### BITSTREAM UPDATES ####
 
-MISSINGFILES = 0
+APP_BIT_PATH = "/_ide/bitstream/"
+
+# MMI, unELFed BIT must be the same for all, so just using the first app
+MMI  = WSPATH + "/" + APPNAMES[0] + APP_BIT_PATH + MMIFILE
+BIT  = WSPATH + "/" + APPNAMES[0] + APP_BIT_PATH + BITFILE
+TEMPIN  = WSPATH + "/" + APPNAMES[0] + APP_BIT_PATH + "_etob_in.bit"
+TEMPOUT  = WSPATH + "/" + APPNAMES[0] + APP_BIT_PATH + "_etob_out.bit"
+
+# check if input files exist
 if not os.path.isfile(MMI):
     print("ERROR: " + MMI + "  does not exist.")
-    MISSINGFILES = MISSINGFILES + 1
+    leave_script(LOCKPATH, OLDLOCKPATH, abort=True)
 if not os.path.isfile(BIT):
     print("ERROR: " + BIT + "  does not exist.")
-    MISSINGFILES = MISSINGFILES + 1
-if not os.path.isfile(ELF):
-    print("ERROR: " + ELF + "  does not exist.")
-    MISSINGFILES = MISSINGFILES + 1
+    leave_script(LOCKPATH, OLDLOCKPATH, abort=True)
+for i in range(len(APPNAMES)):
+    ELF  = WSPATH + "/" + APPNAMES[i] + "/build/" + APPNAMES[i] + ".elf"
+    if not os.path.isfile(ELF):
+        print("ERROR: " + ELF + "does not exist.")
+        leave_script(LOCKPATH, OLDLOCKPATH, abort=True)
 
-if MISSINGFILES==0:
-    print("Input files available, going ahead...")
+# make temporary copy of unELFed bitstream
+os.system("cp " + BIT + " " + TEMPIN)
 
-    print("updatemem -force -meminfo " + MMI)
-    print("                 -bit     " + BIT)
-    print("                 -data    " + ELF)
-    print("                 -proc    " + PROC)
-    print("                 -out     " + OUT)
-    umcall = "updatemem -force -meminfo " + MMI + " -bit " + BIT + " -data " + ELF + " -proc " + PROC + " -out " + OUT
+for i in range(len(APPNAMES)):
+    ELF  = WSPATH + "/" + APPNAMES[i] + "/build/" + APPNAMES[i] + ".elf"
+    PROC = BD_INSTANCE + "/"+ MB_INSTANCES[i]
+    print()
+    print("Adding App " + APPNAMES[i] + " for CPU " + MB_INSTANCES[i] + " to bitstream...")
+    umcall = "updatemem -force -meminfo " + MMI + " -bit " + TEMPIN + " -data " + ELF + " -proc " + PROC + " -out " + TEMPOUT
     os.system(umcall)
+    os.system("cp " + TEMPOUT + " " + TEMPIN)
+
+# move to output file and remove temporary files
+allouts = []
+if a_output != "":
+    OUT  = a_output
+    os.system("cp " + TEMPOUT + " " + OUT)
+    firstout = OUT
+    allouts.append(OUT)
 else:
-    print()
-    print("ELFintoBIT.py aborted.")
-    print()
-    leave_script(LOCKPATH, OLDLOCKPATH)
+    for i in range(len(APPNAMES)): # copy to all app folders
+        OUT  = WSPATH + "/" + APPNAMES[i] + APP_BIT_PATH + "download.bit"
+        os.system("cp " + TEMPOUT + " " + OUT)
+        allouts.append(OUT)
+        if i==0:
+            firstout = OUT
+os.system("rm " + TEMPOUT + " " + TEMPIN)
 
+# list output locations
 print()
-print("ELFintoBIT.py finished.")
-print()
+print("The bitstream was written to the following location(s):")
+print("-------------------------------------------------------")
+for i in range(len(allouts)):
+    print(allouts[i])
 
+# write string OUT into file .last_ELFed_BIT
+with open(WSPATH+"/.last_ELFed_BIT", "w") as f:
+    f.write(firstout)
+
+
+#### LOCAL FPGA DOWNLOAD ####
+if Download:
+    download_to_FPGA(firstout)
+
+
+#### FINISH ####
+
+# leave cleanly
 leave_script(LOCKPATH, OLDLOCKPATH)
