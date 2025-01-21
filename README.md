@@ -1,56 +1,94 @@
 ##
 # *ELFintoBIT*: Scripts to load Microblaze(-V) binary data into a bitstream's BlockRAM
 
-Sadly, with the introduction of the **Microblaze-V** processor in **Vitis 2024.x**, AMD has removed a very useful feature from the ***Program Device*** dialog: The option to integrate an application's code and data into a bitstream's BRAM before downloading it. It still works for the classic Microblaze, but who knows how long.
+Sadly, with the introduction of the **Microblaze-V** processor in **Vitis 2024.x**, AMD has removed a very useful feature from the ***Program Device*** dialog: The option to integrate an application's code and data into a bitstream's BRAM before downloading it using the *updatemem* tool. It still works for the classic Microblaze, but who knows for how long.
 
+<!--
 *(Frankly, this seems insane, given that it is the most straightforward way to get a freshly compiled application started on the FPGA. The way through the debugger, for example, does not work on Zynq systems if one does not also enable the ARM processor. WTF?)*
+-->
 
-Here, we are providing scripts to provide this function for both the classic **Vitis IDE** *(Eclipse-based)* and the **Vitis Unified IDE** *(VS Code/Theia-based)*. They support both the *Microblaze-V* and the legacy *Microblaze* processor.
+This repository holds scripts to provide this function for both the classic **Vitis IDE** *(Eclipse-based)* and the **Vitis Unified IDE** *(VS Code/Theia-based)*. They support both the *Microblaze-V* and the legacy *Microblaze* processor.
 
 If you have questions or suggestions, contact me at [r.willenberg@hs-mannheim.de](mailto://r.willenberg@hs-mannheim.de)
 
-## *Tcl* script for classic *Vitis IDE* (Eclipse) ##
+## *Tcl* command for classic *Vitis IDE* (Eclipse) ##
 
-### Automatic use inside the IDE ###
+[Click here for new Vitis Unified](#python-script-for-vitis-unified-ide)
+[Click here for new Vitis Unified IDE](#python-script-for-vitis-unified-ide-vs-code-theia)
 
-If you have a *Vitis IDE* workspace with exactly **one** application project, there is a quick way to initialize a bitstream:
+### Installation ###
 
-* Open the *Xilinx Software Commandline Tool (XSCT)* console (Click icon or menu *Vitis*->*XSCT Console*)
-* Start our Tcl script with
+The ***xsct*** console in Vitis IDE opens in a default path dependent on the OS, from which you could call the Tcl directly:  
+**Linux:** Copy **ELFintoBIT.tcl** into your home path, e.g. ```/home/thisuser```  
+**Windows:** Copy **ELFintoBIT.tcl** into your ```%XILINX_VITIS%/bin``` path, e.g. ```C:/Xilinx/Vitis/2024.2/bin```
+
+### Simple use inside the IDE ###
+
+To use *ELFintoBIT* with an opened workspace in the Vitis IDE 
+* open the *Xilinx Software Commandline Tool (XSCT)* console (Click icon or menu *Vitis*->*XSCT Console*) and
+* run our Tcl script once to define the **```ELFintoBIT```** Tcl command with
 ```xsct
-   source ~/ELFintoBIT.tcl
+   source ELFintoBIT.tcl
+```
+*(This assumes the script is located in the current work path)*
+* In the common case of exactly **one** application project (or one per CPU, in a multi-processor design), just use the command without parameters:
+
+```xsct
+   ELFintoBIT
 ```
 
-*(This assumes the script is located in the home directory ( ```~/``` ) otherwise adjust to the correct location)*
+By default the generated file **download.bit** is placed next to the imported Vivado bitstream in the application project(s):  
+**```WORKSPACE_PATH/APP_PROJECT/_ide/bitstream/download.bit```**
 
-The resulting file **download.bit** is written to the same place where the original functionality placed it, next to the imported original bitstream in the application project:
-```path
-   WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit
+If you want to *download* the generated bitstream instantly to a locally connected FPGA board (like the GUI did), call the command with the **```-d```** switch:
+```xsct
+   ELFintoBIT -d
+```
+If you want to download the *last* generated bitstream again *without updating*, use the **```-l```** switch:
+```xsct
+   ELFintoBIT -l
 ```
 
-### Use with command-line parameters (*.sh* wrapper) ###
-Alternatively, our script can be used outside *Vitis* with arguments to specify
-* a different Vitis workspace location
-* an application, in case there are multiple applications in the workspace
-* an output bitstream path and name different from the default (```WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit```)
+### Tcl command parameters ###
 
-Because *Tcl* scripts can't have arguments in XSCT, we are using a *bash* shell script as a wrapper. Make sure that you have set the *Vitis* tool paths with the corresponding script (e.g. ```XILINX_PATH/Vitis/2024.1/settings.sh```).
+You can add the following parameters to the **```ELFintoBIT```** call:
 
-Assuming that both the Tcl script **ELFintoBIT.tcl** and the shell wrapper **ELFintoBIT.sh** are located in the home directory ( ```~/``` ), call the script with
+**```-d```** : Generates *and* downloads the bitstream with ELF(s).
+
+**```-l```** : Downloads the last generated bitstream again.
+
+**```-o OUTPUT_FILE```** : Specifies a different output path and filename for the generated bitstream.
+
+**```-a APP_NAME```** : Explicitly specifies an application in the workspace to integrate into the bitstream. This is required if there are multiple application projects for the same CPU/domain in the workspace.  
+In multiprocessor designs, you can use the key multiple times to specify an application for each CPU. You can also restrict only specific CPUs to getting loaded with an app.  
+**```ELFintoBIT```** will fail with an error if
+* without **-a** switches, it finds multiple applications for the same CPU or applications associated with multiple platforms in the workspace  
+* with **-a** switches, multiple applications for the same CPU are specified or applications for different platforms are specified 
+
+**```-w PATH```** : Specifies a workspace directory to use. This is relevant when using the **xsct** console and **ELFintoBIT** outside the Vitis IDE (see below).
+
+### Use outside Vitis IDE ###
+
+For strict command-line / script use, you can
+* set the Vitis environment with the appropriated ```settings*sh/*csh/*bat``` script
+* start **xsct** with **ELFintoBIT** as 
+
 ```bash
-   source ~/ELFintoBIT.sh  -w WORKSPACE_PATH  -a APPLICATION_NAME
+   xsct --quiet --interactive ELFintoBIT.tcl
 ```
-*(adjust the call appropriately if the scripts are located somewhere else)*
+*(add the full path to the script if not in the script directory)*
 
-The bash script turns the arguments into environment variables and then launches XSCT with the Tcl script, which can read the environment variables.
-
-If no output path was specified, the resulting bitstream is again located at
-```path
-   WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit
+The *xsct* console starts and you can use the **```ELFintoBIT```** command. If you were not already in the right location, specify the intended workspace with **-w**. An example with workspace, apps and download parameters: 
+```xsct
+   ELFintoBIT -w ~/MYDESIGN -a cpu0app -a cpu1app -d
 ```
-It is currently not supported to initialize *multiple* processors with *multiple* applications in the same bitstream.
 
+## Python script for Vitis Unified IDE ##
 ## *Python* script for *Vitis Unified IDE* (VS Code/Theia) ##
+
+### Installation ###
+
+
 
 ### Automatic use inside the IDE ###
 
@@ -89,4 +127,3 @@ If no output path was specified, the resulting bitstream is again located at
 ```path
    WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit
 ```
-It is currently not supported to initialize *multiple* processors with *multiple* applications in the same bitstream.
