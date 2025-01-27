@@ -58,7 +58,7 @@ proc ELFintoBIT { args } {
             }
         }
     }
-
+    
     # if clDownloadOnly AND clDownload are set, return error
     if { $clDownloadOnly == 1 && $clDownload == 1 } {
         puts "ERROR: -l and -d options cannot be used together."
@@ -68,19 +68,21 @@ proc ELFintoBIT { args } {
 
     # replace all path backslashes with forward slashes
     set clWorkspace [ string map { "\\" "/" } $clWorkspace ]
+
     set clOutput [ string map { "\\" "/" } $clOutput ]
 
     # make list clApps from clApp
     set clApps [ split [ string trimright [ string trimleft $clApp " " ] " " ]  " " ]
 
     # get workspace path
-    if { [ string length [ getws ] ] == 0 } {
-        if { [ string length $clWorkspace ] == 0 } {
-            setws "./"
-        } else {
-            setws $clWorkspace
-        }
+    if { [ string length $clWorkspace ] == 0 } {
+        if { [ string length [ getws ] ] == 0 } {
+            setws -switch "./"
+        } 
+    } else {
+        setws -switch $clWorkspace
     }
+
     # Read Vitis project path
     set WSPATH [ getws ]
 
@@ -132,7 +134,16 @@ proc ELFintoBIT { args } {
     #### RETRIEVE AND MATCH PROJECT DATA ####
 
     # Retrieve app/domain/platform data for all apps in workspace
-    set APPDATA [ app list -dict ]
+
+    #set APPDATA [ app list -dict ]
+    set result [ catch { app list -dict } APPDATA ]
+            if { $result != 0 } {
+                puts "ERROR: Getting applications failed. Are you sure"
+                puts "         ${WSPATH}"
+                puts "       is the intended workspace?"
+                return 1
+            }
+
     set APPDATA_ELEMENTS [ split [ string trimright $APPDATA " " ]  " " ]
 
     # distribute into app, domain, platform lists
@@ -192,7 +203,9 @@ proc ELFintoBIT { args } {
     set PLATNAME [ lindex $PLATS 0 ]
 
     # Set platform
+puts "Setting active platform"
     platform active $PLATNAME
+puts "Have set active platform"
     puts ""
     puts "Platform     : ${PLATNAME}"
 

@@ -59,17 +59,17 @@ You can add the following parameters to the **```ELFintoBIT```** call:
 **```-o OUTPUT_FILE```** : Specifies a different output path and filename for the generated bitstream.
 
 **```-a APP_NAME```** : Explicitly specifies an application in the workspace to integrate into the bitstream. This is required if there are multiple application projects for the same CPU/domain in the workspace.  
-In multiprocessor designs, you can use the key multiple times to specify an application for each CPU. You can also restrict only specific CPUs to getting loaded with an app.  
-**```ELFintoBIT```** will fail with an error if
-* without **-a** switches, it finds multiple applications for the same CPU or applications associated with multiple platforms in the workspace  
+In multiprocessor designs, you can use the key multiple times to specify an application for each CPU. You can also restrict app-loading to only specific CPUs.  
+**```ELFintoBIT```** will fail with an error if  
+* without **-a** switches, it finds multiple applications for the same CPU or applications associated with multiple platforms in the workspace *or* 
 * with **-a** switches, multiple applications for the same CPU are specified or applications for different platforms are specified 
 
-**```-w PATH```** : Specifies a workspace directory to use. This is relevant when using the **xsct** console and **ELFintoBIT** outside the Vitis IDE (see below).
+**```-w PATH```** : Specifies a workspace directory to use. This is useful when using the **xsct** console and **ELFintoBIT** outside the Vitis IDE (see below).
 
 ### Use outside Vitis IDE ###
 
-For strict command-line / script use, you can
-* set the Vitis environment with the appropriated ```settings*sh/*csh/*bat``` script
+For strict command-line use outside the IDE
+* set the Vitis environment with the appropriate ```settings*.sh/*.csh/*.bat``` script
 * start **xsct** with **ELFintoBIT** as 
 
 ```bash
@@ -77,7 +77,7 @@ For strict command-line / script use, you can
 ```
 *(add the full path to the script if not in the script directory)*
 
-The *xsct* console starts and you can use the **```ELFintoBIT```** command. If you were not already in the right location, specify the intended workspace with **-w**. An example with workspace, apps and download parameters: 
+The *xsct* console starts and you can use the **```ELFintoBIT```** command. If you are not already in the intended workspace path, specify it with **-w**. An example with workspace, apps and download parameters: 
 ```xsct
    ELFintoBIT -w ~/MYDESIGN -a cpu0app -a cpu1app -d
 ```
