@@ -203,9 +203,7 @@ proc ELFintoBIT { args } {
     set PLATNAME [ lindex $PLATS 0 ]
 
     # Set platform
-puts "Setting active platform"
     platform active $PLATNAME
-puts "Have set active platform"
     puts ""
     puts "Platform     : ${PLATNAME}"
 
