@@ -98,6 +98,7 @@ if args.workpath is not None:
         exit()
     else:
         WSPATH = a_workspace
+        WSPATH = os.path.abspath(WSPATH)
         os.chdir(WSPATH)
 else:
     WSPATH = os.getcwd()
@@ -150,7 +151,11 @@ if LOCKPATH != "":
 
 # Set Vitis workspace
 client = vitis.create_client()
-client.set_workspace(path=WSPATH)
+client_state = False
+client_state = client.set_workspace(path=WSPATH)
+if not client_state:
+    print("ERROR: No valid workspace.")
+    leave_script(LOCKPATH, OLDLOCKPATH, abort=True)
 components = client.list_components()
 
 XSA_PATH=""
@@ -243,7 +248,8 @@ if no_apps_specified==False:
 
 # Find XSA file
 XSA_DIR = WSPATH+"/"+PLATFORMNAME+"/hw/"
-for file in os.listdir(PLATFORMNAME+"/hw/"):
+###print("### "+XSA_DIR+" ###")
+for file in os.listdir(XSA_DIR):
     if file.endswith(".xsa"):
         XSA_PATH = os.path.join(WSPATH+"/"+PLATFORMNAME+"/hw/",file)
 

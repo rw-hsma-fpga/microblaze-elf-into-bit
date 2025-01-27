@@ -17,7 +17,7 @@ If you have questions or suggestions, contact me at [r.willenberg@hs-mannheim.de
 
 ### Installation ###
 
-The ***xsct*** console in Vitis IDE opens in a default path dependent on the OS, from which you could call the Tcl directly:  
+The ***xsct*** console inside Vitis IDE opens in a default path dependent on the OS, from which you can source a Tcl script directly:  
 **Linux:** Copy **ELFintoBIT.tcl** into your home path, e.g. ```/home/thisuser```  
 **Windows:** Copy **ELFintoBIT.tcl** into your ```%XILINX_VITIS%/bin``` path, e.g. ```C:/Xilinx/Vitis/2024.2/bin```
 
