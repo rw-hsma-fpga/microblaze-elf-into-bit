@@ -34,7 +34,11 @@ def download_to_FPGA(bitstream):
     print("Attempting to download bitstream to FPGA...")
     # Using "deprecated" xsct tool until AMD gets off their asses
     # and offers this through the Vitis Python API (and documents it)
-    xsct_call = "xsct -quiet -eval \"connect ; set result [ catch { fpga " + bitstream + " } msg ] ; puts \\$msg ; if { \\$result == 1 } { puts \\\"FPGA download failed.\\\" } \""
+    if (platform.system() == "Windows"):
+        xsct_call = "xsct -quiet -eval \"connect ; set result [ catch { fpga " + bitstream + " } msg ] ; puts \$msg ; if { \$result == 1 } { puts \\\"FPGA download failed.\\\" } \""
+    else:
+        xsct_call = "xsct -quiet -eval \"connect ; set result [ catch { fpga " + bitstream + " } msg ] ; puts \\$msg ; if { \\$result == 1 } { puts \\\"FPGA download failed.\\\" } \""
+    print(xsct_call)
     os.system(xsct_call)
 
 
