@@ -31,7 +31,8 @@ def download_to_FPGA(bitstream):
     # change any backslashes to forward slashes
     bitstream = bitstream.replace("\\", "/")
     print()
-    print("Attempting to download bitstream to FPGA...")
+    print("Attempting FPGA download of bitstream")
+    print(" " + bitstream)
     # Using "deprecated" xsct tool until AMD gets off their asses
     # and offers this through the Vitis Python API (and documents it)
     if (platform.system() == "Windows"):
