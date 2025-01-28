@@ -61,7 +61,7 @@ You can add the following parameters to the **```ELFintoBIT```** call:
 **```-a APP_NAME```** : Explicitly specifies an application in the workspace to integrate into the bitstream. This is required if there are multiple application projects for the same CPU/domain in the workspace.  
 In multiprocessor designs, you can use the key multiple times to specify an application for each CPU. You can also restrict app-loading to only specific CPUs.  
 **```ELFintoBIT```** will fail with an error if  
-* without **-a** switches, it finds multiple applications for the same CPU or applications associated with multiple platforms in the workspace *or* 
+* without **-a** switches, it finds multiple applications for the same CPU or applications associated with multiple platforms in the workspace *OR* 
 * with **-a** switches, multiple applications for the same CPU are specified or applications for different platforms are specified 
 
 **```-w PATH```** : Specifies a workspace directory to use. This is useful when using the **xsct** console and **ELFintoBIT** outside the Vitis IDE (see below).
@@ -69,7 +69,7 @@ In multiprocessor designs, you can use the key multiple times to specify an appl
 ### Use outside Vitis IDE ###
 
 For strict command-line use outside the IDE
-* set the Vitis environment with the appropriate ```settings*.sh/*.csh/*.bat``` script
+* set the Vitis environment with the appropriate ```settings64.*``` script
 * start **xsct** with **ELFintoBIT** as 
 
 ```bash
@@ -79,49 +79,100 @@ For strict command-line use outside the IDE
 
 The *xsct* console starts and you can use the **```ELFintoBIT```** command. If you are not already in the intended workspace path, specify it with **-w**. An example with workspace, apps and download parameters: 
 ```xsct
-   ELFintoBIT -w ~/MYDESIGN -a cpu0app -a cpu1app -d
+   ELFintoBIT -w ~/MYDESIGN -a cpu0app -a cpu1app -o ~/2MBs.bit -d
 ```
 
 ## *Python* script for *Vitis Unified IDE* (VS Code/Theia) ##
 
 ### Installation ###
 
+The easiest way to execute our script for the Vitis Python API is through an OS-specific wrapper. That's because executable *Linux bash* and *Windows batch* scripts can be found through the systems **```PATH```** variable. Since we need Vitis environment variables anyway, the installation path of Vitis binaries is a good destination.  
+**Linux:** Copy **ELFintoBIT.sh** and **ELFintoBIT.py** into ```$XILINX_VITIS/bin```    
+(Make sure the shell script is executable)  
+**Windows:** Copy **ELFintoBIT.bat** and **ELFintoBIT.py** into ```$XILINX_VITIS/bin```  
 
+### Simple use inside the Unified IDE ###
 
-### Automatic use inside the IDE ###
-
-If you have a *Vitis Unified IDE* workspace with exactly **one** application project, there is a quick way to initialize a bitstream:
+To use *ELFintoBIT* with an opened workspace in the *Vitis Unified IDE*, another commandline instance of Vitis has to be called to execute our Python script:
 
 * Open a new shell terminal with the Vitis menu entry *Terminal*->*New Terminal*)
-* Launch a *Vitis* command-line instance that executes our Python script with
+* In the common case of exactly **one** application project (or one per CPU, in a multi-processor design), call the appropriate OS wrapper script without parameters:
 ```bash
-   vitis -s ~/ELFintoBIT.py
+   ELFintoBIT.sh
+```
+```batch
+   ELFintoBIT.bat
 ```
 
-*(This assumes the Python script is located in the home directory ( ```~/``` ) otherwise adjust to the correct location)*
+By default the generated file **download.bit** is placed next to the imported Vivado bitstream in the application project(s):  
+**```WORKSPACE_PATH/APP_PROJECT/_ide/bitstream/download.bit```**
 
-The resulting file **download.bit** is written to the same place where the original functionality placed it, next to the imported original bitstream in the application project:
-```path
-   WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit
+If you want to *download* the generated bitstream instantly to a locally connected FPGA board (like the GUI did), call the command with the **```-sd```** switch:
+```bash/bath
+   ELFintoBIT.sh  -sd
+   ELFintoBIT.bat  -sd
 ```
-### Use with command-line parameters ###
+If you want to download the *last* generated bitstream again *without updating*, use the **```-sl```** switch:
+```bash/bath
+   ELFintoBIT.sh  -sl
+   ELFintoBIT.bat  -sl
+```
+### Script command parameters ###
 
-You can specify three types of arguments to the script:
-* a Vitis workspace path that is different from the terminals current work directory
-* a specific application name if there are multiple applications in your Vitis workspace
-* an output path and bitstream name different from the default (```WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit```)
+You can add the following parameters to the **```ELFintoBIT.sh/.bat```** call (all switches have two letters starting with **```s```** so Vitis or Python don't grab them):
 
-When using a terminal not opened inside the **Vitis Unified IDE**, make sure you have set the *Vitis* tool paths with the corresponding script (e.g. ```XILINX_PATH/Vitis/2024.1/settings.sh```).
+**```-sd```** : Generates *and* downloads the bitstream with ELF(s).
 
-This is what the command-line call with added parameters looks like:
+**```-sl```** : Downloads the last generated bitstream again.
+
+**```-so OUTPUT_FILE```** : Specifies a different output path and filename for the generated bitstream.
+
+**```-sa APP_NAME```** : Explicitly specifies an application in the workspace to integrate into the bitstream. This is required if there are multiple application projects for the same CPU/domain in the workspace.  
+In multiprocessor designs, you can use the key multiple times to specify an application for each CPU. You can also restrict app-loading to only specific CPUs.  
+**```ELFintoBIT```** will fail with an error if  
+* without **-sa** switches, it finds multiple applications for the same CPU or applications associated with multiple platforms in the workspace *OR* 
+* with **-sa** switches, multiple applications for the same CPU are specified or applications for different platforms are specified 
+
+**```-sw PATH```** : Specifies a workspace directory to use. This is useful when the console you're calling from is not in the workspace directory, for example if you opened it outside the IDE (see below).
+
+An example Linux call with multiple parameters might look like this:
 
 ```bash
-   vitis -s ~/ELFintoBIT.py  -sw WORKSPACE_PATH  -sa APPLICATION  -so OUTPUT_BITSTREAM
+   ELFintoBIT.sh -sw ~/MYDESIGN -sa cpu0app -sa cpu1app -so ~/2MBs.bit -sd
 ```
 
-Note that the options keys here are ```-sw``` (script workspace),  ```-sa``` (script application) and ```-so``` (script output) because the shorter ```-w``` and ```-a``` are possible options to the Vitis command-line instance, and would not be handed to the script.
+### Use outside the Unified IDE ###
 
-If no output path was specified, the resulting bitstream is again located at
-```path
-   WORKSPACE_PATH/APPLICATION/_ide/bitstream/download.bit
+You can use our scripts in a console outside the Unified IDE, as long as you set the Vitis environment with the appropriate ```settings64.*``` script. Especially in this case, the **```-sw```** switch to target the workspace might be useful
+
+### Calling the Python script directly without wrappers ###
+
+**ELFintoBIT.py** can be called without bash/batch wrapper scripts on the commandline in two ways:
+
+1. Call Vitis with the **```-s```** switch to execute the script once and leave again:
+```console
+   vitis  -s  SCRIPT_PATH/ELFintoBIT.py  [OTHER_PARAMETERS]
 ```
+
+2. Call Vitis to start the Python interactive console, and then run the script:
+ ```console
+   vitis  -i
+   
+   Vitis [1]:  run  SCRIPT_PATH/ELFintoBIT.py  [OTHER_PARAMETERS]
+```
+
+In both cases, the Vitis environment must be set, either by opening the terminal inside Vitis Unified IDE, or by calling the appropriate ```settings64.*``` script.
+
+The parameters **```-sd```**, **```-sl```**, **```-sa```**, **```-so```** and **```-sw```** can be used the same way.
+
+If you do not want to specify the full path to the script each time, you can set the environment variables ```%PYTHONPATH%``` resp. ```$PYTHONPATH``` to the scripts path and the run the script as a module
+```console
+   vitis  -s  -m  ELFintoBIT.py  [OTHER_PARAMETERS]
+```
+or
+ ```console
+   vitis  -i
+   
+   Vitis [1]:  run  -m  ELFintoBIT.py  [OTHER_PARAMETERS]
+```
+Vitis falsely complains about the **```-m```** switch but hands it through to Python anyway.
