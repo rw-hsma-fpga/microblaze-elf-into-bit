@@ -84,7 +84,8 @@ else:
     no_apps_specified = True
 
 if args.output is not None:
-    a_output = args.output
+    a_output = os.path.abspath(args.output)
+
     a_output_dir = os.path.dirname(a_output)
     if not os.access(a_output_dir, os.W_OK):
         print("ERROR: Specified output file is not writable.")
