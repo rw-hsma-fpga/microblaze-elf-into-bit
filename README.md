@@ -26,13 +26,13 @@ The ***xsct*** console inside Vitis IDE opens in a default path dependent on the
 To use *ELFintoBIT* with an opened workspace in the Vitis IDE 
 * open the *Xilinx Software Commandline Tool (XSCT)* console (Click icon or menu *Vitis*->*XSCT Console*) and
 * run our Tcl script once to define the **```ELFintoBIT```** Tcl command with
-```xsct
+```console
    source ELFintoBIT.tcl
 ```
 *(This assumes the script is located in the current work path)*
 * In the common case of exactly **one** application project (or one per CPU, in a multi-processor design), just use the command without parameters:
 
-```xsct
+```console
    ELFintoBIT
 ```
 
@@ -40,11 +40,11 @@ By default the generated file **download.bit** is placed next to the imported Vi
 **```WORKSPACE_PATH/APP_PROJECT/_ide/bitstream/download.bit```**
 
 If you want to *download* the generated bitstream instantly to a locally connected FPGA board (like the GUI did), call the command with the **```-d```** switch:
-```xsct
+```console
    ELFintoBIT -d
 ```
 If you want to download the *last* generated bitstream again *without updating*, use the **```-l```** switch:
-```xsct
+```console
    ELFintoBIT -l
 ```
 
@@ -65,6 +65,7 @@ In multiprocessor designs, you can use the key multiple times to specify an appl
 * with **-a** switches, multiple applications for the same CPU are specified or applications for different platforms are specified 
 
 **```-w PATH```** : Specifies a workspace directory to use. This is useful when using the **xsct** console and **ELFintoBIT** outside the Vitis IDE (see below).
+ATTENTION: Please use forward slashes **```/```** for paths even in **Windows** or *xsct* won't process correctly.
 
 ### Use outside Vitis IDE ###
 
@@ -72,15 +73,16 @@ For strict command-line use outside the IDE
 * set the Vitis environment with the appropriate ```settings64.*``` script
 * start **xsct** with **ELFintoBIT** as 
 
-```bash
-   xsct --quiet --interactive ELFintoBIT.tcl
+```console
+   xsct --quiet --interactive SCRIPT_DIR/ELFintoBIT.tcl
 ```
-*(add the full path to the script if not in the script directory)*
+*(use the full path to the script if not in its directory)*
 
 The *xsct* console starts and you can use the **```ELFintoBIT```** command. If you are not already in the intended workspace path, specify it with **-w**. An example with workspace, apps and download parameters: 
-```xsct
-   ELFintoBIT -w ~/MYDESIGN -a cpu0app -a cpu1app -o ~/2MBs.bit -d
+```console
+   ELFintoBIT -w C:/MYDESIGN -a cpu0app -a cpu1app -o ~/2MBs.bit -d
 ```
+ATTENTION: Please use forward slashes **```/```** for paths even in **Windows** or *xsct* won't process correctly.
 
 ## *Python* script for *Vitis Unified IDE* (VS Code/Theia) ##
 
@@ -97,23 +99,25 @@ To use *ELFintoBIT* with an opened workspace in the *Vitis Unified IDE*, another
 
 * Open a new shell terminal with the Vitis menu entry *Terminal*->*New Terminal*)
 * In the common case of exactly **one** application project (or one per CPU, in a multi-processor design), call the appropriate OS wrapper script without parameters:
-```bash
+```console
    ELFintoBIT.sh
 ```
 ```batch
    ELFintoBIT.bat
 ```
 
+**NOTE:** **In Windows, the Unified IDE sometimes creates a workspace lock that the script can't remove.** *In this case, you'll get a message asking you to kill the task named ***OpenJDK*** in the Windows Task Manager; doing this doesn't break anything else, and enables lock override.*
+
 By default the generated file **download.bit** is placed next to the imported Vivado bitstream in the application project(s):  
 **```WORKSPACE_PATH/APP_PROJECT/_ide/bitstream/download.bit```**
 
 If you want to *download* the generated bitstream instantly to a locally connected FPGA board (like the GUI did), call the command with the **```-sd```** switch:
-```bash/bath
+```console
    ELFintoBIT.sh  -sd
    ELFintoBIT.bat  -sd
 ```
 If you want to download the *last* generated bitstream again *without updating*, use the **```-sl```** switch:
-```bash/bath
+```console
    ELFintoBIT.sh  -sl
    ELFintoBIT.bat  -sl
 ```
@@ -137,7 +141,7 @@ In multiprocessor designs, you can use the key multiple times to specify an appl
 
 An example Linux call with multiple parameters might look like this:
 
-```bash
+```console
    ELFintoBIT.sh -sw ~/MYDESIGN -sa cpu0app -sa cpu1app -so ~/2MBs.bit -sd
 ```
 
@@ -155,7 +159,7 @@ You can use our scripts in a console outside the Unified IDE, as long as you set
 ```
 
 2. Call Vitis to start the Python interactive console, and then run the script:
- ```console
+```console
    vitis  -i
    
    Vitis [1]:  run  SCRIPT_PATH/ELFintoBIT.py  [OTHER_PARAMETERS]
@@ -170,7 +174,7 @@ If you do not want to specify the full path to the script each time, you can set
    vitis  -s  -m  ELFintoBIT.py  [OTHER_PARAMETERS]
 ```
 or
- ```console
+```console
    vitis  -i
    
    Vitis [1]:  run  -m  ELFintoBIT.py  [OTHER_PARAMETERS]

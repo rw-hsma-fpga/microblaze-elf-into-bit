@@ -144,9 +144,12 @@ if LOCKPATH != "":
     if Windows:
         os.system("rm -f " + LOCKPATH)
         if os.path.isfile(LOCKPATH):
+            print()
             print("ERROR: Unable to remove .lock file.")
-            print("Please terminate  vitis-ide's OpenJDK  process in Windows Task Manager before restarting script.")
+            print("PLEASE TERMINATE THE PROCESS NAMED OpenJDK IN Windows Task Manager BEFORE RESTARTING THE SCRIPT.")
+            print("Killing the task does not break anything but enables lock file removal.")
             print("(Blame AMD for this crap.)")
+            print()
             leave_script(LOCKPATH, OLDLOCKPATH, abort=True)
     else:
         os.system("mv "+LOCKPATH+" "+OLDLOCKPATH)
