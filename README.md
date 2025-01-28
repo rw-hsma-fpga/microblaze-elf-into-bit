@@ -102,7 +102,7 @@ To use *ELFintoBIT* with an opened workspace in the *Vitis Unified IDE*, another
 ```console
    ELFintoBIT.sh
 ```
-```batch
+```console
    ELFintoBIT.bat
 ```
 

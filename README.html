@@ -84,7 +84,7 @@ In multiprocessor designs, you can use the key multiple times to specify an appl
 <li>In the common case of exactly <strong>one</strong> application project (or one per CPU, in a multi-processor design), call the appropriate OS wrapper script without parameters:</li>
 </ul>
 <pre class="console"><code>   ELFintoBIT.sh</code></pre>
-<pre class="batch"><code>   ELFintoBIT.bat</code></pre>
+<pre class="console"><code>   ELFintoBIT.bat</code></pre>
 <p><strong>NOTE:</strong> <strong>In Windows, the Unified IDE sometimes creates a workspace lock that the script can’t remove.</strong> <em>In this case, you’ll get a message asking you to kill the task named </em><strong>OpenJDK</strong>* in the Windows Task Manager; doing this doesn’t break anything else, and enables lock override.*</p>
 <p>By default the generated file <strong>download.bit</strong> is placed next to the imported Vivado bitstream in the application project(s):<br />
 <strong><code>WORKSPACE_PATH/APP_PROJECT/_ide/bitstream/download.bit</code></strong></p>
