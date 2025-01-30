@@ -80,7 +80,7 @@ For strict command-line use outside the IDE
 
 The *xsct* console starts and you can use the **```ELFintoBIT```** command. If you are not already in the intended workspace path, specify it with **-w**. An example with workspace, apps and download parameters: 
 ```console
-   ELFintoBIT -w C:/MYDESIGN -a cpu0app -a cpu1app -o ~/2MBs.bit -d
+   ELFintoBIT -w C:/MYDESIGN -a cpu0app -a cpu1app -o ./2MBs.bit -d
 ```
 ATTENTION: Please use forward slashes **```/```** for paths even in **Windows** or *xsct* won't process correctly.
 
