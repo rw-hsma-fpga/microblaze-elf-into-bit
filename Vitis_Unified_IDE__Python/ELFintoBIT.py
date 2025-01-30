@@ -147,8 +147,9 @@ if LOCKPATH != "":
             print()
             print("ERROR: Unable to remove .lock file.")
             print("PLEASE TERMINATE THE PROCESS NAMED OpenJDK IN Windows Task Manager BEFORE RESTARTING THE SCRIPT.")
-            print("Killing the task does not break anything but enables lock file removal.")
-            print("(Blame AMD for this crap.)")
+            print("ON SOME WINDOWS SYSTEMS, IT'S LISTED AS A SUBTASK of vitis-ide.")
+            print()
+            print("(Killing the task does not break anything but enables lock file removal. Blame AMD for this crap.)")
             print()
             leave_script(LOCKPATH, OLDLOCKPATH, abort=True)
     else:
