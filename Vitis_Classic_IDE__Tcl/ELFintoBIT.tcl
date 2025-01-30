@@ -1,3 +1,18 @@
+proc elfintobit_help {} {
+    puts ""
+    puts "usage: ELFintoBIT \[-h\] \[-a APP\] \[-w WORKPATH\] \[-o OUTPUT\] \[-d\] \[-l\]"
+    puts ""
+    puts "optional arguments: "
+    puts "  -a APP        specify application project (can be used multiple times)"
+    puts "  -w WORKPATH   specify Vitis workspace path (if necessary)"
+    puts "  -o OUTPUT     specify non-default output bitstream file"
+    puts "  -d            download bitstream to locally connected FPGA after generation"
+    puts "  -l            download existing generated bitstream again"
+    puts ""
+}
+
+
+
 proc ELFintoBIT { args } {
 
     #### START ####
@@ -22,6 +37,14 @@ proc ELFintoBIT { args } {
         switch -regexp -- $arg {
             "-d" {  set clDownload 1  }
             "-l" {  set clDownloadOnly 1 }
+            "-h" {  
+                    elfintobit_help  
+                    return 0
+            }
+            "--help" {  
+                    elfintobit_help  
+                    return 0
+            }
             "-a" {
                     incr i
                     if {$i < $numArgs} {
@@ -29,6 +52,7 @@ proc ELFintoBIT { args } {
                         append clApp " "
                     } else {
                         puts "ERROR: Missing argument for -a option."
+                        elfintobit_help
                         return 1
                     }
             }
@@ -38,6 +62,7 @@ proc ELFintoBIT { args } {
                         set clWorkspace [ lindex $argsList $i ]
                     } else {
                         puts "ERROR: Missing argument for -w option."
+                        elfintobit_help
                         return 1
                     }
             }
@@ -47,12 +72,14 @@ proc ELFintoBIT { args } {
                         set clOutput [ lindex $argsList $i ]
                     } else {
                         puts "ERROR: Missing argument for -o option."
+                        elfintobit_help
                         return 1
                     }
             }
             default {
                 if { [regexp {^-} $arg] } {
                     puts "ERROR: Unknown option '$arg' specified."
+                    elfintobit_help
                     return 1
                 }
             }
@@ -169,7 +196,7 @@ proc ELFintoBIT { args } {
                 lappend PLATS [ lindex $ALLPLATS $idx ]
             } else {
                 set missingApp $clApp
-                return 1
+                break
             }
         }
         if { $idx == -1 } {
