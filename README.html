@@ -125,7 +125,7 @@ In multiprocessor designs, you can use the key multiple times to specify an appl
    Vitis [1]:  run  SCRIPT_PATH/ELFintoBIT.py  [OTHER_PARAMETERS]</code></pre>
 <p>In both cases, the Vitis environment must be set, either by opening the terminal inside Vitis Unified IDE, or by calling the appropriate <code>settings64.*</code> script.</p>
 <p>The parameters <strong><code>-sd</code></strong>, <strong><code>-sl</code></strong>, <strong><code>-sa</code></strong>, <strong><code>-so</code></strong> and <strong><code>-sw</code></strong> can be used the same way.</p>
-<p>If you do not want to specify the full path to the script each time, you can set the environment variables <code>%PYTHONPATH%</code> resp. <code>$PYTHONPATH</code> to the scripts path and the run the script as a module</p>
+<p>If you do not want to specify the full path to the script each time, you can set the environment variables <code>%PYTHONPATH%</code> resp. <code>$PYTHONPATH</code> to the scripts path and then run the script as a module with</p>
 <pre class="console"><code>   vitis  -s  -m  ELFintoBIT.py  [OTHER_PARAMETERS]</code></pre>
 <p>or</p>
 <pre class="console"><code>   vitis  -i

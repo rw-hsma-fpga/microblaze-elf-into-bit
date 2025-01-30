@@ -169,7 +169,7 @@ In both cases, the Vitis environment must be set, either by opening the terminal
 
 The parameters **```-sd```**, **```-sl```**, **```-sa```**, **```-so```** and **```-sw```** can be used the same way.
 
-If you do not want to specify the full path to the script each time, you can set the environment variables ```%PYTHONPATH%``` resp. ```$PYTHONPATH``` to the scripts path and the run the script as a module
+If you do not want to specify the full path to the script each time, you can set the environment variables ```%PYTHONPATH%``` resp. ```$PYTHONPATH``` to the scripts path and then run the script as a module with
 ```console
    vitis  -s  -m  ELFintoBIT.py  [OTHER_PARAMETERS]
 ```
