@@ -134,7 +134,8 @@ proc ELFintoBIT { args } {
             return 1
         }
         puts ""
-        puts "Attempting to download bitstream to FPGA..."
+        puts "Attempting FPGA download of bitstream"
+        puts " ${last_bitstream}"
         puts ""
         # catch exception if connect doesn't work, print message in that case
         set result [ catch { connect } msg ]
@@ -419,7 +420,8 @@ proc ELFintoBIT { args } {
 
     if { $clDownload == 1 } {
         puts ""
-        puts "Attempting to download bitstream to FPGA..."
+        puts "Attempting FPGA download of bitstream"
+        puts " ${OUT}"
         puts ""
         # catch exception if connect doesn't work, print message in that case
         set result [ catch { connect } msg ]
